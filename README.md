@@ -336,6 +336,14 @@ claude mcp add --transport http context7 https://mcp.context7.com/mcp \
 
 MIT License - See [LICENSE](LICENSE) file for details.
 
+## 👤 Author
+
+**Komal Venkatesh Ganesan**
+
+If you find this skill helpful for managing your Home Assistant setup, consider supporting its development:
+
+<a href="https://www.buymeacoffee.com/komalvenkag" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>
+
 ## 💬 Support & Discussion
 
 - **Issues**: [GitHub Issues](https://github.com/komal-SkyNET/claude-skill-homeassistant/issues)
