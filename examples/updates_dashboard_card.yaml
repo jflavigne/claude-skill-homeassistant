@@ -1,0 +1,202 @@
+# ============================================================================
+# UPDATE TRACKER DASHBOARD CARDS
+# ============================================================================
+# Add these cards to any Lovelace dashboard to track available updates.
+# Requires: templates/sensors/updates.yaml deployed and loaded
+#
+# Option 1: Summary card with expandable details
+# Option 2: Simple count badge
+# Option 3: Full list with auto-entities (requires HACS auto-entities card)
+# ============================================================================
+
+# -----------------------------------------------------------------------------
+# OPTION 1: Summary Card (Mushroom Template)
+# Shows count with color-coded status, expands to show details
+# -----------------------------------------------------------------------------
+summary_card:
+  type: custom:mushroom-template-card
+  primary: System Updates
+  secondary: >-
+    {% set count = states('sensor.updates_available') | int(0) %}
+    {% if count == 0 %}All systems up to date
+    {% elif count == 1 %}1 update available
+    {% else %}{{ count }} updates available
+    {% endif %}
+  icon: >-
+    {% set count = states('sensor.updates_available') | int(0) %}
+    {% if count > 0 %}mdi:package-up{% else %}mdi:package-check{% endif %}
+  icon_color: >-
+    {% set count = states('sensor.updates_available') | int(0) %}
+    {% if count > 0 %}orange{% else %}green{% endif %}
+  tap_action:
+    action: more-info
+    entity: sensor.updates_available
+  fill_container: true
+
+# -----------------------------------------------------------------------------
+# OPTION 2: Compact Badge (for sidebar or header)
+# -----------------------------------------------------------------------------
+badge:
+  type: custom:mushroom-chips-card
+  chips:
+    - type: template
+      icon: >-
+        {% set count = states('sensor.updates_available') | int(0) %}
+        {% if count > 0 %}mdi:package-up{% else %}mdi:package-check{% endif %}
+      icon_color: >-
+        {% set count = states('sensor.updates_available') | int(0) %}
+        {% if count > 0 %}orange{% else %}green{% endif %}
+      content: "{{ states('sensor.updates_available') }}"
+      tap_action:
+        action: navigate
+        navigation_path: /config/updates
+
+# -----------------------------------------------------------------------------
+# OPTION 3: Full Details Card (requires auto-entities from HACS)
+# Shows all updates with version info, grouped by category
+# -----------------------------------------------------------------------------
+full_details_card:
+  type: vertical-stack
+  cards:
+    # Header
+    - type: custom:mushroom-title-card
+      title: System Updates
+      subtitle: >-
+        {% set count = states('sensor.updates_available') | int(0) %}
+        {% set total = state_attr('sensor.updates_available', 'total_entities') | int(0) %}
+        {{ count }} pending of {{ total }} tracked
+
+    # HA Core section
+    - type: conditional
+      conditions:
+        - entity: sensor.updates_ha_core
+          state_not: "0"
+      card:
+        type: custom:auto-entities
+        card:
+          type: entities
+          title: Home Assistant
+        filter:
+          include:
+            - entity_id: "update.home_assistant*"
+              state: "on"
+
+    # Add-ons section
+    - type: conditional
+      conditions:
+        - entity: sensor.updates_addons
+          state_not: "0"
+      card:
+        type: custom:auto-entities
+        card:
+          type: entities
+          title: Add-ons
+        filter:
+          include:
+            - entity_id: "update.*"
+              state: "on"
+              attributes:
+                entity_picture: "*hassio*"
+
+    # HACS section
+    - type: conditional
+      conditions:
+        - entity: sensor.updates_hacs_integrations
+          state_not: "0"
+      card:
+        type: custom:auto-entities
+        card:
+          type: entities
+          title: HACS
+        filter:
+          include:
+            - entity_id: "update.*_update"
+              state: "on"
+              attributes:
+                release_url: "*github*"
+
+    # All up to date message
+    - type: conditional
+      conditions:
+        - entity: sensor.updates_available
+          state: "0"
+      card:
+        type: custom:mushroom-template-card
+        primary: All Up to Date
+        secondary: No updates available
+        icon: mdi:check-circle
+        icon_color: green
+
+# -----------------------------------------------------------------------------
+# OPTION 4: Simple Tile Cards Grid
+# Native HA tile cards, no custom cards required
+# -----------------------------------------------------------------------------
+native_tiles:
+  type: grid
+  columns: 2
+  cards:
+    - type: tile
+      entity: sensor.updates_available
+      name: Total Updates
+      icon: mdi:package-up
+      color: orange
+      tap_action:
+        action: navigate
+        navigation_path: /config/updates
+
+    - type: tile
+      entity: sensor.updates_ha_core
+      name: HA Core
+      icon: mdi:home-assistant
+      color: blue
+
+    - type: tile
+      entity: sensor.updates_addons
+      name: Add-ons
+      icon: mdi:puzzle
+      color: purple
+
+    - type: tile
+      entity: sensor.updates_hacs_integrations
+      name: HACS
+      icon: mdi:github
+      color: teal
+
+# -----------------------------------------------------------------------------
+# OPTION 5: Entities Card with Category Breakdown
+# Standard HA entities card, works everywhere
+# -----------------------------------------------------------------------------
+entities_card:
+  type: entities
+  title: Update Status
+  entities:
+    - entity: sensor.updates_available
+      name: Total Available
+      icon: mdi:package-up
+    - type: divider
+    - entity: sensor.updates_ha_core
+      name: Home Assistant
+      icon: mdi:home-assistant
+    - entity: sensor.updates_addons
+      name: Add-ons
+      icon: mdi:puzzle
+    - entity: sensor.updates_hacs_integrations
+      name: HACS Integrations
+      icon: mdi:github
+    - entity: sensor.updates_hacs_frontend
+      name: HACS Frontend
+      icon: mdi:palette
+    - entity: sensor.updates_devices
+      name: Device Firmware
+      icon: mdi:devices
+  footer:
+    type: buttons
+    entities:
+      - entity: button.check_for_updates
+        name: Check Now
+        icon: mdi:refresh
+        tap_action:
+          action: call-service
+          service: homeassistant.update_entity
+          target:
+            entity_id: update.home_assistant_core_update
