@@ -905,6 +905,133 @@ Labels require thoughtful planning. Use this workflow:
 
 5. **Changes are immediate via WebSocket** - No git push or HA restart needed. Changes apply instantly to HA's entity registry. Just refresh browser to see them.
 
+## AI Assistant Integration
+
+### Understanding HA Conversation Agent Limitations
+
+**Critical insight:** The HA Conversation agent (OpenAI integration) only exposes entity **state** to the AI, NOT attributes. This means:
+- ✅ AI sees: `sensor.nas_status` state = "Storage 93% full"
+- ❌ AI cannot see: attributes like `cpu_percent`, `memory_percent`, `summary`
+
+**Implication:** Rich attribute data is invisible to voice/chat assistants. Design sensors accordingly.
+
+### AI-Optimized Sensor Pattern
+
+Pack all key metrics into the **state** string (max 255 chars) instead of attributes:
+
+```yaml
+# BAD: Metrics in attributes (AI can't see these)
+- name: "Device Status"
+  state: "Healthy"
+  attributes:
+    cpu: "{{ states('sensor.cpu') }}"
+    memory: "{{ states('sensor.memory') }}"
+
+# GOOD: All metrics in state (AI can parse this)
+- name: "Device Status"
+  state: >-
+    Device — Status: {{ status }}{% if issues %} ({{ issues | join(', ') }}){% endif %} ·
+    CPU {{ cpu }}% · Mem {{ mem }}% · Temp {{ temp }}°C
+```
+
+**Format guidelines:**
+- Start with device name and explicit status verdict: `Healthy`, `Warning`, `Critical`
+- Include reason in parentheses: `Warning (Storage high)`
+- Use `·` or `|` as separators (speakable)
+- Label metrics clearly: "Storage 93% **used**" not just "93%"
+- Keep under 200 chars for readability
+
+**Example - NAS Status Sensor:**
+```
+Soundwave NAS — Status: Warning (Storage high) · Storage 93% used · CPU 5% · Mem 30% · System 40°C · Drives OK (37–38°C) · Security OK
+```
+
+### Exposing Entities to Conversation Agent
+
+**Two different systems - don't confuse them:**
+
+| File | Purpose |
+|------|---------|
+| `.storage/homeassistant.exposed_entities` | Alexa/Google Home exposure |
+| `.storage/core.entity_registry` → `options.conversation.should_expose` | **Conversation agent (OpenAI)** |
+
+**To expose an entity to the AI assistant via WebSocket:**
+
+```python
+import asyncio
+import json
+import websockets
+
+async def expose_entity(entity_id):
+    uri = f"ws://{HASS_HOST}:8123/api/websocket"
+    async with websockets.connect(uri) as ws:
+        # Auth
+        await ws.recv()  # auth_required
+        await ws.send(json.dumps({"type": "auth", "access_token": HASS_TOKEN}))
+        await ws.recv()  # auth_ok
+
+        # Expose to conversation agent
+        await ws.send(json.dumps({
+            "id": 1,
+            "type": "homeassistant/expose_entity",
+            "assistants": ["conversation"],
+            "entity_ids": [entity_id],
+            "should_expose": True
+        }))
+        result = await ws.recv()
+        return json.loads(result).get('success')
+
+asyncio.run(expose_entity("sensor.nas_status"))
+```
+
+**Note:** Changes take effect immediately - no restart needed.
+
+### Testing Conversation Agent
+
+Test AI assistant responses via curl:
+
+```bash
+# Ask the assistant a question
+curl -s -X POST \
+  -H "Authorization: Bearer $HASS_TOKEN" \
+  -H "Content-Type: application/json" \
+  "$HASS_SERVER/api/conversation/process" \
+  -d '{"agent_id":"conversation.your_agent", "text":"How is the NAS doing?"}' \
+  | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['response']['speech']['plain']['speech'])"
+```
+
+**Find your agent_id:**
+```bash
+hass-cli state list | grep conversation
+# Example: conversation.anna
+```
+
+### Synology DSM Status Reference
+
+When creating sensors for Synology NAS, handle all possible states:
+
+**Volume Status:**
+| Status | Severity | Meaning |
+|--------|----------|---------|
+| `normal` | OK | Volume healthy |
+| `attention` | Warning | Needs attention (e.g., >90% full) |
+| `degraded` | Critical | RAID degraded (drive failed, array functional) |
+| `crashed` | Critical | RAID failed (data at risk) |
+| `repairing` | Info | RAID rebuilding |
+
+**Drive Status:**
+| Status | Severity | Meaning |
+|--------|----------|---------|
+| `normal` / `healthy` | OK | Drive healthy |
+| `warning` | Warning | Issues detected, bad sectors |
+| `critical` | High | Critical issues |
+| `failing` | Critical | Severe issues, integrity not guaranteed |
+| `crashed` | Critical | Drive removed from pool |
+
+**Security Status (binary_sensor):**
+- `off` = Security OK
+- `on` = Security Alert
+
 ---
 
 This skill encapsulates efficient Home Assistant management workflows developed through iterative optimization and real-world dashboard development. Apply these patterns to any Home Assistant instance for reliable, fast, and safe configuration management.
