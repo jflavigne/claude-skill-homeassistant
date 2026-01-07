@@ -1,0 +1,43 @@
+# Automation ID Migration Plan
+#
+# Use with:
+#   python3 scripts/ha_migrate_automation_ids.py preview examples/migration.yaml
+#   python3 scripts/ha_migrate_automation_ids.py execute examples/migration.yaml
+#
+# This file maps old automation IDs (typically timestamps) to new descriptive IDs.
+#
+# IMPORTANT: You must also update the `id:` field in your automation YAML files
+# to match the new IDs before running the migration.
+#
+# The migration tool will:
+# 1. Stop Home Assistant
+# 2. Update unique_id values in the entity registry
+# 3. Preserve all metadata (area, icon, labels)
+# 4. Reboot Home Assistant
+#
+# Generate a migration plan from your current state:
+#   python3 scripts/ha_migrate_automation_ids.py generate > my_migration.yaml
+
+migrations:
+  # Format: 'old_id': new_id
+  # or detailed format with comments
+
+  # Climate automations
+  '1734583537473':
+    new_id: climate_kitchen_thermostat_schedule
+    # entity_id: automation.kitchen_thermostat_schedule
+    # has_metadata: true (will be preserved)
+
+  '1734630745872':
+    new_id: climate_elie_thermostat_schedule
+    # entity_id: automation.elie_thermostat_schedule
+
+  '1734929071522':
+    new_id: climate_office_thermostat_schedule
+    # entity_id: automation.office_thermostat_schedule
+
+  # Simple format also works:
+  # '1735000000000': climate_living_room_dynamic_thermostat
+
+# After migration, your automations will have clean entity_ids
+# without the _2 suffix, and all metadata will be preserved.

@@ -1,0 +1,76 @@
+# Home Assistant Automation Metadata Configuration
+#
+# Use with: python3 scripts/ha_entity_metadata.py apply examples/automation_metadata.yaml
+#
+# This file defines icons, areas, and labels for automations.
+# Labels must exist before assignment - create them first:
+#   python3 scripts/ha_entity_metadata.py labels create climate --icon mdi:thermometer
+#
+# Dry-run to preview changes:
+#   python3 scripts/ha_entity_metadata.py apply examples/automation_metadata.yaml --dry-run
+
+automations:
+  # Climate automations
+  automation.kitchen_thermostat_schedule:
+    icon: mdi:home-thermometer-outline
+    area_id: kitchen
+    labels:
+      - climate
+      - scheduled
+
+  automation.living_room_dynamic_thermostat:
+    icon: mdi:home-thermometer-outline
+    area_id: living_room
+    labels:
+      - climate
+      - presence
+
+  automation.office_thermostat_schedule:
+    icon: mdi:home-thermometer-outline
+    area_id: office
+    labels:
+      - climate
+      - scheduled
+
+  automation.elie_thermostat_schedule:
+    icon: mdi:home-thermometer-outline
+    area_id: elie_s_room
+    labels:
+      - climate
+      - scheduled
+
+  # Lighting automations
+  automation.sunset_porch_lights:
+    icon: mdi:lightbulb-auto
+    area_id: exterior
+    labels:
+      - lighting
+      - scheduled
+
+  # Vacuum automations
+  automation.bumblebee_daily_clean:
+    icon: mdi:robot-vacuum
+    area_id: living_room
+    labels:
+      - vacuum
+      - scheduled
+
+  # Notification automations
+  automation.low_battery_alert:
+    icon: mdi:battery-alert
+    labels:
+      - notifications
+      - safety
+
+# Suggested label taxonomy for this home:
+#
+# | Label         | Icon                   | Purpose                      |
+# |---------------|------------------------|------------------------------|
+# | climate       | mdi:thermometer        | Heating/cooling automations  |
+# | lighting      | mdi:lightbulb          | Light control automations    |
+# | vacuum        | mdi:robot-vacuum       | Bumblebee-related            |
+# | media         | mdi:television         | Apple TV, Sonos, etc.        |
+# | notifications | mdi:bell               | Alert automations            |
+# | scheduled     | mdi:clock              | Time-triggered automations   |
+# | presence      | mdi:account            | Occupancy-based automations  |
+# | safety        | mdi:shield             | Critical/safety automations  |

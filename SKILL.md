@@ -22,11 +22,46 @@ Expert-level Home Assistant configuration management with efficient workflows, r
 ## Prerequisites
 
 Before starting, verify the environment has:
-1. SSH access to Home Assistant instance (`root@homeassistant.local`)
+1. SSH access to Home Assistant instance (`jflavigne@homeassistant.local`)
 2. `hass-cli` installed locally
-3. Environment variables loaded (HASS_SERVER, HASS_TOKEN)
-4. Git repository connected to HA `/config` directory
-5. Context7 MCP server with Home Assistant docs (recommended)
+3. Environment variables loaded (HASS_SERVER, HASS_TOKEN) - via `source .env`
+4. Git repository connected to HA `/homeassistant` directory
+5. Context7 MCP server with Home Assistant docs (optional)
+
+**Note:** The `ha core` CLI commands are not available via the SSH add-on. Use `hass-cli` for service calls and API access instead.
+
+## Quick Deployment (Claude Code)
+
+Two methods available for deploying config changes from Claude Code:
+
+### Method 1: SSH + tar (Direct, Always Works)
+```bash
+# Deploy all config files
+tar czf - automations.yaml scripts.yaml templates/ | ssh jflavigne@homeassistant.local "cd /homeassistant && sudo tar xzf -"
+
+# Reload via hass-cli
+export HASS_SERVER=http://homeassistant.local:8123
+export HASS_TOKEN=<token_from_.envrc>
+hass-cli service call automation.reload
+hass-cli service call script.reload
+hass-cli service call template.reload
+```
+
+### Method 2: MCP Script (After Git SSH Setup)
+Once git SSH is configured on HA, call via MCP:
+```
+script.deploy_from_github
+```
+This pulls from GitHub and reloads all YAML automatically.
+
+### Environment Setup
+Source credentials before using hass-cli:
+```bash
+export HASS_SERVER=http://homeassistant.local:8123
+export HASS_TOKEN=<from .envrc>
+export HASS_SSH_USER=jflavigne
+export HASS_SSH_HOST=homeassistant.local
+```
 
 ## Remote Access Patterns
 
@@ -46,20 +81,26 @@ hass-cli service call automation.reload
 hass-cli service call automation.trigger --arguments entity_id=automation.name
 ```
 
-### Using SSH for HA CLI
+### Using SSH for File Operations
 
 ```bash
-# Check configuration validity
-ssh root@homeassistant.local "ha core check"
+# Deploy files via SCP
+scp automations.yaml jflavigne@homeassistant.local:/homeassistant/
 
-# Restart Home Assistant
-ssh root@homeassistant.local "ha core restart"
+# Pull latest from git
+ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
 
-# View logs
-ssh root@homeassistant.local "ha core logs"
+# Check git status on HA
+ssh jflavigne@homeassistant.local "cd /homeassistant && git status"
+```
 
-# Tail logs with grep
-ssh root@homeassistant.local "ha core logs | grep -i error | tail -20"
+**Note:** `ha core check/restart/logs` commands require Supervisor access (not available via SSH add-on). Use hass-cli instead:
+```bash
+# Reload automations (instead of restart)
+hass-cli service call automation.reload
+
+# Check for errors via API
+hass-cli raw get /api/error/all
 ```
 
 ## Deployment Workflows
@@ -71,7 +112,7 @@ Use for changes you want in version control:
 ```bash
 # 1. Make changes locally
 # 2. Check validity
-ssh root@homeassistant.local "ha core check"
+ssh jflavigne@homeassistant.local "ha core check"
 
 # 3. Commit and push
 git add file.yaml
@@ -79,16 +120,16 @@ git commit -m "Description"
 git push
 
 # 4. CRITICAL: Pull to HA instance
-ssh root@homeassistant.local "cd /config && git pull"
+ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
 
 # 5. Reload or restart
 hass-cli service call automation.reload  # if reload sufficient
 # OR
-ssh root@homeassistant.local "ha core restart"  # if restart needed
+ssh jflavigne@homeassistant.local "ha core restart"  # if restart needed
 
 # 6. Verify
 hass-cli state get sensor.new_entity
-ssh root@homeassistant.local "ha core logs | grep -i error | tail -20"
+ssh jflavigne@homeassistant.local "ha core logs | grep -i error | tail -20"
 ```
 
 ### Rapid Development Workflow (Testing/Iteration)
@@ -98,7 +139,7 @@ Use `scp` for quick testing before committing:
 ```bash
 # 1. Make changes locally
 # 2. Quick deploy
-scp automations.yaml root@homeassistant.local:/config/
+scp automations.yaml jflavigne@homeassistant.local:/homeassistant/
 
 # 3. Reload/restart
 hass-cli service call automation.reload
@@ -148,12 +189,12 @@ git push
 ### Step 1: Deploy
 ```bash
 git add automations.yaml && git commit -m "..." && git push
-ssh root@homeassistant.local "cd /config && git pull"
+ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
 ```
 
 ### Step 2: Check Configuration
 ```bash
-ssh root@homeassistant.local "ha core check"
+ssh jflavigne@homeassistant.local "ha core check"
 ```
 
 ### Step 3: Reload
@@ -174,7 +215,7 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 ### Step 5: Check Logs
 ```bash
 sleep 3
-ssh root@homeassistant.local "ha core logs | grep -i 'automation_name' | tail -20"
+ssh jflavigne@homeassistant.local "ha core logs | grep -i 'automation_name' | tail -20"
 ```
 
 **Success indicators:**
@@ -235,7 +276,7 @@ If errors found:
 vim .storage/lovelace.control_center
 
 # 2. Deploy immediately (no git commit yet)
-scp .storage/lovelace.control_center root@homeassistant.local:/config/.storage/
+scp .storage/lovelace.control_center jflavigne@homeassistant.local:/homeassistant/.storage/
 
 # 3. Refresh browser (Ctrl+F5 or Cmd+Shift+R)
 # No HA restart needed!
@@ -246,7 +287,7 @@ scp .storage/lovelace.control_center root@homeassistant.local:/config/.storage/
 git add .storage/lovelace.control_center
 git commit -m "Update dashboard layout"
 git push
-ssh root@homeassistant.local "cd /config && git pull"
+ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
 ```
 
 **Why scp for dashboards:**
@@ -275,11 +316,11 @@ cp .storage/lovelace.my_home .storage/lovelace.new_dashboard
 }
 
 # Step 3: Deploy both files
-scp .storage/lovelace.new_dashboard root@homeassistant.local:/config/.storage/
-scp .storage/lovelace_dashboards root@homeassistant.local:/config/.storage/
+scp .storage/lovelace.new_dashboard jflavigne@homeassistant.local:/homeassistant/.storage/
+scp .storage/lovelace_dashboards jflavigne@homeassistant.local:/homeassistant/.storage/
 
 # Step 4: Restart HA (required for registry changes)
-ssh root@homeassistant.local "ha core restart"
+ssh jflavigne@homeassistant.local "ha core restart"
 sleep 30
 
 # Step 5: Verify appears in sidebar
@@ -554,12 +595,12 @@ hass-cli state get binary_sensor.front_door
 
 ```bash
 # Configuration
-ssh root@homeassistant.local "ha core check"
-ssh root@homeassistant.local "ha core restart"
+ssh jflavigne@homeassistant.local "ha core check"
+ssh jflavigne@homeassistant.local "ha core restart"
 
 # Logs
-ssh root@homeassistant.local "ha core logs | tail -50"
-ssh root@homeassistant.local "ha core logs | grep -i error | tail -20"
+ssh jflavigne@homeassistant.local "ha core logs | tail -50"
+ssh jflavigne@homeassistant.local "ha core logs | grep -i error | tail -20"
 
 # State/Services
 hass-cli state list
@@ -569,18 +610,18 @@ hass-cli service call automation.trigger --arguments entity_id=automation.name
 
 # Deployment
 git add . && git commit -m "..." && git push
-ssh root@homeassistant.local "cd /config && git pull"
-scp file.yaml root@homeassistant.local:/config/
+ssh jflavigne@homeassistant.local "cd /homeassistant && git pull"
+scp file.yaml jflavigne@homeassistant.local:/homeassistant/
 
 # Dashboard deployment
-scp .storage/lovelace.my_dashboard root@homeassistant.local:/config/.storage/
+scp .storage/lovelace.my_dashboard jflavigne@homeassistant.local:/homeassistant/.storage/
 python3 -m json.tool .storage/lovelace.my_dashboard > /dev/null  # Validate JSON
 
 # Quick test cycle
-scp automations.yaml root@homeassistant.local:/config/
+scp automations.yaml jflavigne@homeassistant.local:/homeassistant/
 hass-cli service call automation.reload
 hass-cli service call automation.trigger --arguments entity_id=automation.name
-ssh root@homeassistant.local "ha core logs | grep -i 'automation' | tail -10"
+ssh jflavigne@homeassistant.local "ha core logs | grep -i 'automation' | tail -10"
 ```
 
 ## Best Practices Summary
@@ -621,6 +662,248 @@ Dashboard Change Needed
 ├─ Iterate until perfect
 └─ Commit to git when stable
 ```
+
+## Entity Registry Management
+
+### Understanding Automation IDs vs Entity IDs
+
+**Critical distinction:**
+- **YAML `id` field** → becomes `unique_id` in entity registry (internal identifier)
+- **YAML `alias` field** → becomes `entity_id` (e.g., `automation.kitchen_thermostat_schedule`)
+
+**WARNING: Changing automation IDs causes problems!**
+When you change an automation's `id` field:
+1. HA sees it as a completely NEW automation
+2. Creates a new entity registry entry
+3. Since the `alias` generates the same `entity_id`, HA adds `_2` suffix
+4. Old metadata (area, icon, labels) is orphaned on the old entry
+
+### Labels, Icons, and Areas are UI-Only
+
+**These CANNOT be set via YAML:**
+- Labels
+- Icons (for automations)
+- Area assignments
+
+**They are stored in:** `.storage/core.entity_registry`
+
+**To set them:**
+1. Via HA UI: Settings → Automations → Select → 3-dot menu → Edit metadata
+2. Via WebSocket API (undocumented): `config/entity_registry/update`
+
+**The MCP server does NOT support setting labels/icons** - it only provides device control.
+
+### Fixing Duplicate `_2` Automation Entries
+
+If you changed automation IDs and have duplicates:
+
+**The Fix Process:**
+```bash
+# 1. Stop HA (NOT restart - must stop completely)
+curl -X POST "http://homeassistant.local:8123/api/services/homeassistant/stop" \
+  -H "Authorization: Bearer $HASS_TOKEN"
+
+# 2. Wait for HA to stop
+sleep 15
+
+# 3. Run fix script (updates unique_ids, removes duplicates)
+# See /tmp/ha_fix_registry_final.py or create similar
+
+# 4. Reboot system (since we can't start HA via SSH add-on)
+ssh jflavigne@homeassistant.local "sudo reboot"
+```
+
+**Fix Script Logic:**
+```python
+# For each _2 entry:
+#   1. Find matching non-_2 entry (has metadata)
+#   2. Update non-_2 entry's unique_id to match new YAML id
+#   3. Delete the _2 entry
+# Result: Clean entity_ids with preserved metadata
+```
+
+**Key insight:** Registry changes must be made while HA is STOPPED. HA overwrites registry from memory on shutdown.
+
+### Entity Registry Structure
+
+```json
+{
+  "entity_id": "automation.kitchen_thermostat_schedule",
+  "unique_id": "climate_kitchen_thermostat_schedule",  // <-- matches YAML id
+  "area_id": "kitchen",
+  "icon": "mdi:home-thermometer-outline",
+  "labels": ["thermostat"],
+  "platform": "automation"
+}
+```
+
+### Best Practices for Automation IDs
+
+1. **Pick descriptive IDs from the start** - avoid changing them later
+2. **Use consistent naming convention:** `domain_room_action` (e.g., `climate_kitchen_thermostat_schedule`)
+3. **If you must change IDs:** Be prepared to run the registry fix process
+4. **Document your ID scheme** to maintain consistency
+
+## Automation Metadata Tools
+
+Scripts in `scripts/` directory for managing automation labels, icons, and areas programmatically.
+
+### Prerequisites
+
+```bash
+pip install websockets pyyaml
+```
+
+### Tool 1: Registry Backup (`ha_backup_registry.py`)
+
+Create timestamped backups of the entity registry before making changes.
+
+```bash
+# Create backup
+python3 scripts/ha_backup_registry.py backup
+
+# List existing backups
+python3 scripts/ha_backup_registry.py list
+
+# Restore from backup (requires HA stopped)
+python3 scripts/ha_backup_registry.py restore 20260107_120000
+
+# Clean old backups (keep last 5)
+python3 scripts/ha_backup_registry.py clean --keep 5
+```
+
+Backups stored in: `scripts/backups/entity_registry.<timestamp>.json`
+
+### Tool 2: Entity Metadata (`ha_entity_metadata.py`)
+
+Bulk assign labels, icons, and areas via WebSocket API.
+
+```bash
+# ALWAYS START WITH STATS - shows what's missing
+python3 scripts/ha_entity_metadata.py stats
+
+# Export ALL automations (including those without metadata)
+python3 scripts/ha_entity_metadata.py export --all > all_automations.yaml
+
+# Export only automations that already have metadata
+python3 scripts/ha_entity_metadata.py export > metadata.yaml
+
+# Apply metadata from config file
+python3 scripts/ha_entity_metadata.py apply metadata.yaml
+
+# Preview changes without applying
+python3 scripts/ha_entity_metadata.py apply metadata.yaml --dry-run
+
+# Set single automation
+python3 scripts/ha_entity_metadata.py set automation.kitchen_thermostat \
+    --icon mdi:thermometer --area kitchen --labels thermostat,climate
+
+# Label management
+python3 scripts/ha_entity_metadata.py labels list
+python3 scripts/ha_entity_metadata.py labels create climate --icon mdi:thermometer --color blue
+python3 scripts/ha_entity_metadata.py labels delete climate
+python3 scripts/ha_entity_metadata.py labels suggest climate --pattern "automation.*thermostat*"
+```
+
+**IMPORTANT:** Always run `stats` first to see total automation count and coverage!
+
+**Config file format (`automation_metadata.yaml`):**
+```yaml
+automations:
+  automation.kitchen_thermostat_schedule:
+    icon: mdi:home-thermometer-outline
+    area_id: kitchen
+    labels:
+      - climate
+      - scheduled
+```
+
+**Important:** Labels must exist before assignment. Create them first or use the Claude-assisted workflow.
+
+### Tool 3: ID Migration (`ha_migrate_automation_ids.py`)
+
+Safely migrate automation IDs while preserving metadata.
+
+```bash
+# Generate migration plan from current state
+python3 scripts/ha_migrate_automation_ids.py generate > migration.yaml
+
+# Preview what will change
+python3 scripts/ha_migrate_automation_ids.py preview migration.yaml
+
+# Execute full migration (stops HA, updates registry, reboots)
+python3 scripts/ha_migrate_automation_ids.py execute migration.yaml
+
+# Fix registry after YAML already updated (removes _2 duplicates)
+python3 scripts/ha_migrate_automation_ids.py fix-registry
+```
+
+**Migration workflow:**
+1. Update YAML `id` fields with new descriptive IDs
+2. Generate or edit migration.yaml
+3. Run `execute` - tool handles stop/migrate/reboot
+
+### Label Management Workflow (Claude-Assisted)
+
+Labels require thoughtful planning. Use this workflow:
+
+1. **Check current coverage (CRITICAL FIRST STEP):**
+   ```bash
+   python3 scripts/ha_entity_metadata.py stats
+   ```
+
+2. **List existing labels:**
+   ```bash
+   python3 scripts/ha_entity_metadata.py labels list
+   ```
+
+3. **Export ALL automations for analysis:**
+   ```bash
+   python3 scripts/ha_entity_metadata.py export --all > all_automations.yaml
+   ```
+
+4. **Plan label taxonomy** (Claude can help analyze automations and suggest labels)
+
+5. **Create labels:**
+   ```bash
+   python3 scripts/ha_entity_metadata.py labels create climate --icon mdi:thermometer
+   python3 scripts/ha_entity_metadata.py labels create scheduled --icon mdi:clock
+   ```
+
+6. **Apply labels to automations:**
+   ```bash
+   python3 scripts/ha_entity_metadata.py apply metadata.yaml
+   ```
+
+7. **Verify coverage:**
+   ```bash
+   python3 scripts/ha_entity_metadata.py stats
+   ```
+
+**Suggested label taxonomy:**
+
+| Label         | Icon                | Purpose                     |
+|---------------|---------------------|-----------------------------|
+| climate       | mdi:thermometer     | Heating/cooling automations |
+| lighting      | mdi:lightbulb       | Light control automations   |
+| vacuum        | mdi:robot-vacuum    | Robot vacuum automations    |
+| media         | mdi:television      | Media player automations    |
+| notifications | mdi:bell            | Alert automations           |
+| scheduled     | mdi:clock           | Time-triggered automations  |
+| presence      | mdi:account         | Occupancy-based automations |
+| safety        | mdi:shield          | Critical/safety automations |
+
+### Common Mistakes to Avoid
+
+1. **Not running `stats` first** - The `export` command without `--all` only shows automations that ALREADY have metadata. Always run `stats` to see the true count.
+
+2. **Assuming export shows everything** - Use `export --all` to see ALL automations including those without any metadata assigned.
+
+3. **Not verifying after bulk updates** - Always run `stats` after applying changes to confirm coverage.
+
+4. **Forgetting labels must exist first** - Labels must be created before they can be assigned to automations.
+
+5. **Changes are immediate via WebSocket** - No git push or HA restart needed. Changes apply instantly to HA's entity registry. Just refresh browser to see them.
 
 ---
 
